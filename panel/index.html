@@ -1,0 +1,232 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Panel Bot</title>
+<style>
+  :root {
+    --bg: #f5f5f2; --card: #ffffff; --ink: #1d1f1e; --mute: #6b6f6c; --line: #e2e2dd;
+    --accent: #1f6f5c; --accent-ink: #ffffff; --warn: #a15c00; --warn-bg: #fff4e0;
+    --bad: #b3261e; --bad-bg: #fdecea; --ok: #1f6f5c; --ok-bg: #e5f3ee; --log: #fafaf8;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #161817; --card: #1f2221; --ink: #e9ebe9; --mute: #9aa09c; --line: #2f3331;
+      --accent: #4fb89b; --accent-ink: #0d1a16; --warn: #f0b35a; --warn-bg: #33281a;
+      --bad: #f28b82; --bad-bg: #3a1f1d; --ok: #4fb89b; --ok-bg: #1a2e28; --log: #191b1a;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 13px/1.4 system-ui, "Segoe UI", sans-serif; }
+  main { max-width: 760px; margin: 0 auto; padding: 8px; display: grid; gap: 8px; }
+  h1 { font-size: 14px; margin: 0; display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 10px; }
+  .card h2 { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--mute); margin: 0 0 4px; }
+  .pill { font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 999px; background: var(--line); color: var(--mute); }
+  .pill.run { background: var(--ok-bg); color: var(--ok); }
+  .pill.wait { background: var(--warn-bg); color: var(--warn); }
+  .pill.bad { background: var(--bad-bg); color: var(--bad); }
+  .pos { font-size: 14px; font-weight: 600; }
+  .sub { color: var(--mute); font-size: 11px; }
+  .row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-top: 8px; }
+  button { font: inherit; font-weight: 600; border-radius: 7px; padding: 5px 10px; border: 1px solid var(--line);
+           background: var(--card); color: var(--ink); cursor: pointer; }
+  button.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+  button.danger { color: var(--bad); }
+  button:disabled { opacity: .45; cursor: default; }
+  input[type=number] { width: 48px; font: inherit; padding: 3px 4px; border-radius: 6px; border: 1px solid var(--line);
+                       background: var(--card); color: var(--ink); text-align: center; }
+  .now { font-size: 13px; font-weight: 600; word-break: break-word;
+         display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+  .alert { border-radius: 7px; padding: 6px 8px; margin-top: 8px; font-size: 12px; }
+  .alert.wait { background: var(--warn-bg); color: var(--warn); }
+  .alert.bad { background: var(--bad-bg); color: var(--bad); }
+  .alert a { color: inherit; font-weight: 600; }
+  details { margin-top: 8px; }
+  details summary { cursor: pointer; color: var(--mute); font-size: 11px; }
+  pre { background: var(--log); border: 1px solid var(--line); border-radius: 7px; padding: 6px; margin: 6px 0 0;
+        max-height: 140px; overflow: auto; font: 10.5px/1.4 ui-monospace, Consolas, monospace; white-space: pre-wrap; word-break: break-word; }
+  [hidden] { display: none !important; }
+  body { font: 15px/1.5 "Segoe UI",system-ui,sans-serif; }
+  main { max-width: 460px; padding: 10px; }
+  h1 { font-size: 15px; padding: 2px 2px 5px; }
+  .card { padding: 15px; border-radius: 14px; border-top: 3px solid var(--accent); }
+  .now { font-size: 21px; line-height: 1.2; letter-spacing: -.025em; margin: 0 0 6px; }
+  .sub,details summary { font-size: 13px; }
+  #hint { margin: 8px 0; }
+  button { min-height: 36px; }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  details { border-top: 1px solid var(--line); padding-top: 8px; }
+  body.compact .card { display:none; } body.compact h1 { margin:0; }
+</style>
+</head>
+<body>
+<main>
+  <h1><span id="brand">Asisten Belajar</span> <span id="pill" class="pill">Memuat…</span><button id="compact" aria-expanded="true" aria-controls="session" hidden>Ringkas</button></h1>
+
+  <section class="card" id="session">
+    <div id="now" class="now" role="status">Menghubungkan panel…</div>
+    <div id="context" class="sub"></div><p id="hint"></p>
+    <div class="row" id="limits">
+      <label>Berhenti setelah <input id="max" type="number" min="1" max="50" value="4"> pelajaran</label>
+    </div>
+    <div class="row">
+      <button id="resume" class="primary" hidden>Lanjutkan sesi</button>
+      <button id="choose" hidden>Pilih pelajaran</button>
+      <button id="stop" hidden>Hentikan sesi</button>
+    </div>
+    <div id="startErr" class="alert bad" hidden></div>
+    <div id="waitBox" class="alert wait" hidden>
+      <div id="waitText"></div>
+      <div class="row" style="margin-top:8px"><button id="enter" class="primary">Sudah, lanjutkan</button></div>
+    </div>
+    <div id="helpBox" class="alert bad" hidden></div>
+    <details id="logBox">
+      <summary>Rincian sesi</summary>
+      <div id="pos" class="pos"></div><div id="posSub" class="sub"></div><div id="nowSub" class="sub"></div>
+      <pre id="log"></pre>
+    </details>
+  </section>
+</main>
+<script>
+const $ = (id) => document.getElementById(id);
+let st = null, item = "", lastAt = 0, lastMsg = "", help = null, online = false, compact = false, originalHeight = 400;
+const counts = {};
+function activity(msg) {
+  if (/menunggu jawaban|^Soal:/i.test(msg)) return 'Menunggu jawaban AI';
+  if (/AI nggak bisa dihubungi/i.test(msg)) return 'Mencoba menghubungkan AI';
+  if (/klik kirim|jawaban diserahkan/i.test(msg)) return 'Jawaban sudah dikirim';
+  if (/refresh|konfirmasi centang/i.test(msg)) return 'Memeriksa tanda selesai';
+  if (/^\[kuis\]/i.test(msg)) return 'Mengerjakan kuis';
+  if (/lihat aktivitas/i.test(msg)) return 'Membuka aktivitas kolaborasi';
+  if (/^\[modul\]|^Membuka pelajaran/i.test(msg)) return 'Membuka pelajaran';
+  return item ? 'Mengerjakan aktivitas' : 'Menyiapkan pelajaran';
+}
+
+const post = (p, b) => fetch(p, { method: "POST", headers: { "Content-Type": "application/json", "X-Panel": "1" }, body: JSON.stringify(b || {}) });
+
+function ago(t) {
+  const s = Math.max(0, Math.round((Date.now() - t) / 1000));
+  if (s < 60) return s + " dtk lalu";
+  if (s < 3600) return Math.round(s / 60) + " mnt lalu";
+  return new Date(t).toLocaleString("id-ID");
+}
+
+// Baris log "[hh.mm.ss] pesan" → status yang bisa dibaca
+function onLine(line, live) {
+  const msg = line.replace(/^\[[\d.:]+\]\s*/, "");
+  const pre = $("log");
+  const atBottom = pre.scrollTop + pre.clientHeight >= pre.scrollHeight - 20;
+  pre.textContent += line + "\n";
+  if (atBottom) pre.scrollTop = pre.scrollHeight;
+  const recap = msg.match(/^\[rekap\] (.+?) \((\d+)\):/);
+  if (recap) { counts[recap[1]] = Number(recap[2]); render(); return; }
+  if (/^\[(ikon|nav|slide|panel\] Enter)/.test(msg)) return; // terlalu rinci buat status
+
+  let m;
+  if ((m = msg.match(/^=== Pelajaran.*?:\s*(.+)$/))) { item = ""; lastMsg = "Membuka pelajaran " + m[1]; }
+  else if ((m = msg.match(/^(Buka item|Ulang \(REDO\)):\s*(.+?)( sudah|$)/))) { item = m[2]; lastMsg = "Mulai mengerjakan"; }
+  else lastMsg = msg;
+  lastAt = live ? Date.now() : lastAt;
+
+  if (/\[diag\] Screenshot: (.+\.png)/.test(msg)) {
+    help = help || { reason: "Bot butuh bantuan" };
+    help.shot = msg.match(/Screenshot: (.+\.png)/)[1];
+  } else if (/^\[diag\]|^✖|macet|cek manual|perlu bantuan|Menunggu konfirmasi/i.test(msg)) {
+    help = { reason: msg.replace(/^\[diag\]\s*/, "") };
+  }
+  render();
+}
+
+function render() {
+  const s = st || {};
+  const pill = $("pill");
+  if (s.running && s.waitingInput) { pill.textContent = "Menunggu kamu"; pill.className = "pill wait"; }
+  else if (s.running) { pill.textContent = "Berjalan"; pill.className = "pill run"; }
+  else if (s.exit && s.exit.code) { pill.textContent = "Berhenti (error)"; pill.className = "pill bad"; }
+  else { pill.textContent = s.exit ? 'Berakhir' : 'Siap'; pill.className = 'pill'; }
+  if (!online) { pill.textContent = 'Menghubungkan'; pill.className = 'pill wait'; }
+
+  const cp = s.checkpoint;
+  $("pos").textContent = cp ? "Pelajaran " + cp.lesson : "Belum ada posisi tersimpan";
+  $("posSub").textContent = cp ? [cp.step, cp.time && ago(new Date(cp.time).getTime())].filter(Boolean).join(" · ") : "Pakai \"Pilih pelajaran lain\" untuk run pertama";
+  $("resume").disabled = !!s.running || !cp;
+  $("choose").disabled = !!s.running;
+  $("max").disabled = !!s.running;
+  $("stop").hidden = !s.running;
+  $('limits').hidden = !online || !!s.running;
+  $('resume').hidden = !online || !!s.running || !cp;
+  $('choose').hidden = !online || !!s.running;
+  $('choose').classList.toggle('primary', !cp);
+  $('stop').disabled = !online;
+  $('enter').disabled = !online;
+
+  const needsHelp = help || counts['perlu bantuan'] || (s.exit && s.exit.code !== 0);
+  const headline = !online ? 'Menghubungkan panel…' : s.waitingInput ? 'Giliran kamu' : s.running ? activity(lastMsg) : needsHelp ? 'Sesi perlu diperiksa' : s.exit ? 'Sesi berakhir' : cp ? 'Lanjutkan pelajaran terakhir?' : 'Mulai sesi pertama';
+  $('now').textContent = headline;
+  $('context').textContent = item || cp?.step?.replace(/^Item terbuka:\s*/i,'') || '';
+  $('hint').textContent = !online ? 'Menunggu koneksi ke asisten lokal.' : s.waitingInput ? '' : s.running ? 'Belum perlu melakukan apa pun.' : s.exit ? `${counts.terkonfirmasi || 0} aktivitas terkonfirmasi · ${counts['menunggu centang'] || 0} menunggu centang · ${counts['perlu bantuan'] || 0} perlu diperiksa.` : cp ? 'Asisten akan memeriksa progres sebelum melanjutkan.' : 'Pilih pelajaran di jendela kursus untuk memulai.';
+  if ((!s.running || s.waitingInput || !online || help) && compact) toggleCompact();
+  $('compact').hidden = !online || !s.running || s.waitingInput || !!help;
+  $('brand').textContent = compact ? headline : 'Asisten Belajar';
+  $("nowSub").textContent = s.running && lastAt ? "Aktivitas terakhir " + ago(lastAt) : "";
+
+  $("waitBox").hidden = !(s.running && s.waitingInput);
+  $("waitText").textContent = s.mode === "choose"
+    ? "Login kalau perlu, buka halaman pelajaran (ada sidebar Pra-Kelas) di Chrome bot, lalu klik:"
+    : "Bot minta konfirmasi. Cek Chrome bot (lihat log), lalu klik:";
+
+  const hb = $("helpBox");
+  hb.hidden = !help;
+  if (help) {
+    hb.textContent = 'Periksa halaman kursus. Alasan lengkap ada di rincian sesi. ';
+    if (help.shot) {
+      const a = document.createElement("a");
+      a.href = "/shot?f=" + encodeURIComponent(help.shot); a.target = "_blank"; a.textContent = "Lihat tangkapan layar";
+      hb.appendChild(a);
+    }
+  }
+}
+
+function toggleCompact() {
+  compact = !compact;
+  document.body.classList.toggle('compact', compact);
+  $('compact').textContent = compact ? 'Perluas' : 'Ringkas';
+  $('compact').setAttribute('aria-expanded',String(!compact));
+  if (window.opener) { if (compact) originalHeight = window.outerHeight; window.resizeTo(window.outerWidth,compact ? window.outerHeight-window.innerHeight+64 : originalHeight); }
+}
+$('compact').onclick = () => { toggleCompact(); render(); };
+$("resume").onclick = () => start("resume");
+$("choose").onclick = () => start("choose");
+$("stop").onclick = () => { if (confirm("Hentikan bot sekarang? Soal yang sedang dikerjakan bisa terpotong.")) post("/api/stop"); };
+$("enter").onclick = () => post("/api/enter");
+
+async function start(mode) {
+  $("startErr").hidden = true;
+  if (!$('max').reportValidity()) return;
+  for (const k of Object.keys(counts)) delete counts[k];
+  $("log").textContent = ""; item = ""; lastMsg = ""; help = null;
+  const r = await post("/api/start", { mode, max: Number($("max").value) || 4 });
+  const j = await r.json().catch(() => ({}));
+  if (j.error) { $("startErr").textContent = j.error; $("startErr").hidden = false; }
+}
+
+function connect() {
+  const es = new EventSource("/api/events");
+  es.addEventListener("state", (e) => {
+    const first = !st;
+    st = JSON.parse(e.data);
+    online = true;
+    if (first) $("max").value = st.max;
+    render();
+  });
+  es.addEventListener("history", (e) => { $("log").textContent = ""; for (const l of JSON.parse(e.data)) onLine(l, false); });
+  es.addEventListener("line", (e) => onLine(JSON.parse(e.data), true));
+  es.onerror = () => { online = false; render(); };
+}
+connect();
+setInterval(render, 5000);
+</script>
+</body>
+</html>
