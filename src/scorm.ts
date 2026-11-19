@@ -53,7 +53,7 @@ type Item = { text: string; el: ElementHandle };
 async function contentExited(page: Page) {
   for (const f of page.frames()) {
     // Versi ID & EN (goodbye.html: "The content has ended. You may close this window.", terverifikasi 13.06)
-    if (await f.getByText(/Konten sudah habis|The content has ended/i).count().catch(() => 0)) return true;
+    if (await f.getByText(/Konten sudah habis|Konten ini sudah selesai\.\s*Anda dapat menutup laman ini|The content has ended/i).count().catch(() => 0)) return true;
   }
   return false;
 }
@@ -106,8 +106,13 @@ const candidatesOf = (items: Item[]) =>
 /** Kunci unik per soal = gabungan teks kandidat (bukan cuma teks berakhiran "?"). */
 // Cuma 3 teks pertama: teks feedback/centang yang muncul setelah Kirim (biasanya di akhir DOM) nggak ngubah kunci.
 // (13.54: 12 → 16 teks setelah Kirim → dikira soal baru → opsi diklik ulang = pilihan kebatal)
+export function dropdownKey(texts: string[]) {
+  if (!texts.some(t => DROPDOWN_HINT.test(t) || /^down arrow icon/i.test(t))) return;
+  const prompts = texts.filter(t => /\?\s*$/.test(t) || /^\d+\.\s/.test(t));
+  if (prompts.length) return JSON.stringify(['dropdown', ...prompts]);
+}
 const keyOf = (items: Item[]) =>
-  candidatesOf(items)
+  dropdownKey(candidatesOf(items).map(i => i.text)) ?? candidatesOf(items)
     .slice(0, 3)
     .map((i) => i.text)
     .join("|");
@@ -212,7 +217,9 @@ async function answerDropdown(
     await sleep(600);
   }
 
-  await items.find((i) => /^kirim$/i.test(i.text))?.el.click({ force: true });
+  const submit = items.find((i) => /^kirim$/i.test(i.text));
+  if (!submit) return fail('tombol Kirim tidak ditemukan');
+  await submit.el.click({ force: true });
   for (let t = 0; t < 6; t++) {
     await sleep(1000);
     const after = await visibleItems(frame);
@@ -229,7 +236,7 @@ async function answerDropdown(
       return;
     }
   }
-  log("❔ Feedback dropdown nggak kebaca");
+  fail('umpan balik setelah Kirim belum terkonfirmasi');
 }
 
 /** Layer feedback (Benar/Belum tepat) lagi tampil? Tutup dulu sebelum baca soal. Return true kalau ada yang ditutup. */
@@ -725,7 +732,7 @@ export async function runScorm(
       await clickNext(frame, "Konten minta SELANJUTNYA");
     } else if (pik) {
       if (!done.has(keyOf(items))) {
-        if (texts.some((t) => DROPDOWN_HINT.test(t))) await answerDropdown(frame, items, done, blocked, context, triedDropdown);
+        if (texts.some((t) => DROPDOWN_HINT.test(t) || /^down arrow icon/i.test(t))) await answerDropdown(frame, items, done, blocked, context, triedDropdown);
         else await answerPikirkan(frame, items, wrong, done, context);
       }
       else if (blocked.has(keyOf(items))) {
