@@ -3,7 +3,7 @@
 // Hanya dengar di 127.0.0.1; POST wajib header X-Panel (request lintas situs nggak bisa ngirim itu tanpa preflight).
 import { spawn, type ChildProcess } from "node:child_process";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import type { BrowserContext, Page } from "playwright";
 import { openBrowser } from "./browser.js";
@@ -62,7 +62,12 @@ function startBot(mode: "resume" | "choose", max: number) {
   if (bot) return "Bot sudah jalan";
   if (!existsSync(TSX)) return "node_modules belum ada → jalankan npm i dulu";
   if (!existsSync(path.join(ROOT, ".env"))) return ".env belum ada (salin dari .env.example)";
-  writeFileSync(PREFS, JSON.stringify({ max }));
+  try {
+    mkdirSync(path.dirname(PREFS), { recursive: true });
+    writeFileSync(PREFS, JSON.stringify({ max }));
+  } catch {
+    return "Pengaturan panel tidak bisa disimpan. Pastikan folder logs di dalam proyek dapat ditulis.";
+  }
 
   if (!ctx) return "Chrome bot belum siap";
   const env: NodeJS.ProcessEnv = {
